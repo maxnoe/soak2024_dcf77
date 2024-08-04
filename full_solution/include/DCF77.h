@@ -108,13 +108,13 @@ struct DCF77 {
         valid = true;
     }
 
-    void loop(bool current_value) {
+    bool loop(uint32_t t, bool current_value) {
         if (!state && current_value) {
             state = current_value;
 
             // new pulse starts
             previous_pulse_begin = current_pulse_begin;
-            current_pulse_begin = millis();
+            current_pulse_begin = t;
 
             if (first_pulse_begin == 0) first_pulse_begin = current_pulse_begin;
 
@@ -123,18 +123,21 @@ struct DCF77 {
             if (previous_pulse_begin != 0 && (current_pulse_begin - previous_pulse_begin) > 1500) {
                 newMinute();
             } 
-        } else if (state && !current_value){
+            return true;
+        }
+
+        if (state && !current_value){
             state = current_value;
 
             // pulse end
-            int duration = millis() - current_pulse_begin;
+            int duration = t - current_pulse_begin;
             int time_since_previous = current_pulse_begin - previous_pulse_begin;
 
             Serial.println(fmt::format("Falling edge. time since last pulse: {:4d}, high duration: {}", time_since_previous, duration).c_str());
             if (time_since_previous < 800 || duration < 80) {
                 Serial.println("Short pulse, noise?");
                 reset();
-                return;
+                return false;
             }
             // DCF77 uses 200ms for an 1 bit, 100ms for 0 bit
             bool value = duration > 150;
@@ -146,6 +149,8 @@ struct DCF77 {
             Serial.println(fmt::format("{:8.1f} {:2d} {:1d} {:064b}", t, current_bit, value, data).c_str());
             current_bit++;
         }
+
+        return false;
     }
 
 };
